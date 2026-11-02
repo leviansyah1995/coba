@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Grid Layout Studio - 1 Lembar Multi-Foto</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2canvas for High-Res Canvas Capture -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- jsPDF for Direct Exact-Dimension PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+
+        /* Paper Sizes and Aspect Ratios */
+        .paper-canvas {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            margin: 0 auto;
+            position: relative;
+            background-color: #ffffff;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+            display: block;
+        }
+
+        /* Dimension Standard Mapping for Screen Canvas */
+        .paper-a4-portrait {
+            width: 100%;
+            max-width: 595px;
+            aspect-ratio: 210 / 297;
+        }
+        .paper-a4-landscape {
+            width: 100%;
+            max-width: 842px;
+            aspect-ratio: 297 / 210;
+        }
+        .paper-letter-portrait {
+            width: 100%;
+            max-width: 612px;
+            aspect-ratio: 215.9 / 279.4;
+        }
+        .paper-square {
+            width: 100%;
+            max-width: 595px;
+            aspect-ratio: 1 / 1;
+        }
+
+        /* Print Media Styles */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #paperPageContainer, #paperPage, #paperPage * {
+                visibility: visible;
+            }
+            #paperPageContainer {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100% !important;
+                height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: transparent !important;
+            }
+            #paperPage {
+                box-shadow: none !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                height: 100% !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 z-50 bg-slate-800 text-slate-100 border border-slate-700 px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none flex items-center gap-3">
+        <i class="fa-solid fa-circle-info text-indigo-400"></i>
+        <span id="toastMsg" class="text-sm font-medium">Pesan notifikasi</span>
+    </div>
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 no-print z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-indigo-600/30">
+                <i class="fa-solid fa-table-cells-large"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold tracking-tight text-white">Photo Grid Layout Studio</h1>
+                <p class="text-xs text-slate-400">Susun banyak foto otomatis pas dalam 1 lembar kertas</p>
+            </div>
+        </div>
+
+        <!-- Header Action Controls -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <button id="clearAllBtn" onclick="clearAllPhotos()" class="hidden px-3.5 py-2 bg-slate-800 hover:bg-red-900/40 text-slate-300 hover:text-red-400 text-xs font-semibold rounded-lg border border-slate-700 transition duration-200 items-center gap-2">
+                <i class="fa-solid fa-trash"></i> Bersihkan Foto
+            </button>
+            <button onclick="downloadAsPNG()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white text-xs font-semibold rounded-lg border border-indigo-500/40 transition duration-200 flex items-center gap-2">
+                <i class="fa-solid fa-file-image"></i> Simpan Gambar (PNG)
+            </button>
+            <button onclick="generateDirectPDF()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-emerald-600/30 transition duration-200 flex items-center gap-2">
+                <i class="fa-solid fa-file-pdf"></i> Simpan PDF Presisi
+            </button>
+            <button onclick="triggerPrint()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-lg shadow-indigo-600/30 transition duration-200 flex items-center gap-2">
+                <i class="fa-solid fa-print"></i> Cetak Langsung
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- Sidebar Controls -->
+        <div class="w-full lg:w-96 bg-slate-900 border-r border-slate-800 p-4 sm:p-5 overflow-y-auto space-y-6 flex-shrink-0 no-print">
+            
+            <!-- Upload Drag-Drop Box -->
+            <div id="dropZone" class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-5 text-center bg-slate-900/60 transition duration-200 cursor-pointer group relative">
+                <input type="file" id="fileInput" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileSelect(event)">
+                <div class="w-11 h-11 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition duration-200">
+                    <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                </div>
+                <p class="text-sm font-semibold text-slate-200">Upload / Drop Foto</p>
+                <p class="text-xs text-slate-400 mt-0.5">Pilih 1 atau banyak foto sekaligus</p>
+            </div>
+
+            <!-- Global Quick Duplication Preset -->
+            <div class="bg-slate-800/60 border border-slate-700/80 rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-semibold text-slate-300">Duplikasi Cepat (Semua Foto):</label>
+                    <span class="text-[10px] text-slate-400">Misal: 1 foto jadi 10x</span>
+                </div>
+                <div class="grid grid-cols-5 gap-1.5">
+                    <button onclick="setAllCopies(1)" class="py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-xs font-semibold">1x</button>
+                    <button onclick="setAllCopies(2)" class="py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-400 rounded border border-slate-700 text-xs font-semibold">2x</button>
+                    <button onclick="setAllCopies(4)" class="py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-400 rounded border border-slate-700 text-xs font-semibold">4x</button>
+                    <button onclick="setAllCopies(6)" class="py-1.5 bg-slate-800 hover:bg-slate-700 text-indigo-400 rounded border border-slate-700 text-xs font-semibold">6x</button>
+                    <button onclick="setAllCopies(10)" class="py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded border border-slate-700 text-xs font-semibold">10x</button>
+                </div>
+            </div>
+
+            <!-- Configuration Options -->
+            <div class="space-y-4">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2 flex items-center justify-between">
+                    <span>Pengaturan Lembar & Grid</span>
+                    <i class="fa-solid fa-sliders text-indigo-400"></i>
+                </h3>
+
+                <!-- Paper Standard Selector -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1.5">Ukuran Kertas Fizik:</label>
+                    <select id="paperSize" onchange="updateLayout()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                        <option value="paper-a4-portrait">A4 Portrait (210 x 297 mm)</option>
+                        <option value="paper-a4-landscape">A4 Landscape (297 x 210 mm)</option>
+                        <option value="paper-letter-portrait">Letter Portrait (215.9 x 279.4 mm)</option>
+                        <option value="paper-square">Square / Persegi (210 x 210 mm)</option>
+                    </select>
+                </div>
+
+                <!-- Layout Calculation Mode -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1.5">Metode Layout Grid:</label>
+                    <select id="layoutModeSelect" onchange="changeLayoutMode(this.value)" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                        <option value="auto">Otomatis Pas Dalam 1 Lembar</option>
+                        <option value="manual">Manual (Set Jumlah Kolom & Baris)</option>
+                    </select>
+                </div>
+
+                <!-- Manual Grid Column / Row Controls -->
+                <div id="manualGridControls" class="hidden grid-cols-2 gap-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Jumlah Kolom:</label>
+                        <input type="number" id="colsInput" min="1" max="12" value="2" onchange="updateLayout()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Jumlah Baris:</label>
+                        <input type="number" id="rowsInput" min="1" max="12" value="2" onchange="updateLayout()" class="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <!-- Object Fit Crop Option -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1.5">Pemotongan Foto (Object Fit):</label>
+                    <select id="fitMode" onchange="updateLayout()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                        <option value="cover">Penuhi Kotak (Potong / Crop Rapi)</option>
+                        <option value="contain">Tampilkan Utuh (Fit Tanpa Potong)</option>
+                    </select>
+                </div>
+
+                <!-- Margin and Gap Sliders -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Margin Pinggir (px):</label>
+                        <input type="number" id="marginInput" min="0" max="80" value="16" onchange="updateLayout()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Jarak Foto (px):</label>
+                        <input type="number" id="gapInput" min="0" max="60" value="8" onchange="updateLayout()" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <!-- Paper Color Picker -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Warna Background Lembar:</label>
+                    <div class="flex items-center gap-2">
+                        <input type="color" id="bgColorInput" value="#ffffff" onchange="updateLayout()" class="w-9 h-9 rounded border border-slate-700 bg-slate-800 cursor-pointer">
+                        <span class="text-xs text-slate-400">Standard Putih Kertas</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Uploaded Photos List -->
+            <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Foto & Jumlah Salinan</h3>
+                    <span id="photoListBadge" class="text-[10px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full font-bold">0 Foto</span>
+                </div>
+                <div id="photoListContainer" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <!-- Dynamic photo items generated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Preview Area -->
+        <div class="flex-1 bg-slate-950 p-4 sm:p-8 flex flex-col items-center justify-start overflow-y-auto min-h-[550px] relative">
+            
+            <!-- Real-time Status Indicator Header -->
+            <div class="w-full max-w-3xl flex flex-wrap items-center justify-between mb-4 text-xs text-slate-400 px-2 gap-2 no-print">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span class="font-medium text-slate-300">Live Preview Lembar Kerja</span>
+                </div>
+                <div class="flex items-center gap-4 font-mono text-[11px] bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg">
+                    <span>Total Foto: <strong id="totalPhotosCount" class="text-indigo-400">0</strong></span>
+                    <span>Kapasitas Grid: <strong id="capacityCount" class="text-emerald-400">0</strong></span>
+                    <span>Status Lembar: <strong id="pageEstimateCount" class="text-indigo-400">1 Lembar</strong></span>
+                </div>
+            </div>
+
+            <!-- Main Canvas Sheet Paper Container -->
+            <div id="paperPageContainer" class="w-full flex-1 flex items-center justify-center p-2">
+                <div id="paperPage" class="paper-canvas paper-a4-portrait">
+                    <!-- Rendered Grid Content -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        let uploadedPhotos = [];
+        let layoutMode = 'auto';
+
+        // Exact Physical Dimension Settings for jsPDF
+        const PAPER_DIMENSIONS = {
+            'paper-a4-portrait': { widthMm: 210, heightMm: 297, format: 'a4', orientation: 'p' },
+            'paper-a4-landscape': { widthMm: 297, heightMm: 210, format: 'a4', orientation: 'l' },
+            'paper-letter-portrait': { widthMm: 215.9, heightMm: 279.4, format: 'letter', orientation: 'p' },
+            'paper-square': { widthMm: 210, heightMm: 210, format: [210, 210], orientation: 'p' }
+        };
+
+        // Drag & Drop Setup
+        const dropZone = document.getElementById('dropZone');
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-950/30');
+            }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-950/30');
+            }, false);
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) handleFiles(files);
+        });
+
+        // Initialize layout preview as soon as DOM is ready
+        window.addEventListener('DOMContentLoaded', () => {
+            updateLayout();
+        });
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            if (files && files.length > 0) handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+            if (validFiles.length === 0) {
+                showToast('Pilih file berformat gambar (JPG, PNG, WebP).');
+                return;
+            }
+
+            let loadedCount = 0;
+            validFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    uploadedPhotos.push({
+                        id: 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        src: e.target.result,
+                        name: file.name,
+                        copies: 1
+                    });
+                    loadedCount++;
+                    if (loadedCount === validFiles.length) {
+                        renderPhotoList();
+                        updateLayout();
+                        showToast(`Berhasil menambahkan ${validFiles.length} foto.`);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderPhotoList() {
+            const container = document.getElementById('photoListContainer');
+            const clearBtn = document.getElementById('clearAllBtn');
+            const badge = document.getElementById('photoListBadge');
+            
+            if (badge) badge.innerText = `${uploadedPhotos.length} Foto`;
+
+            if (uploadedPhotos.length > 0) {
+                clearBtn.classList.remove('hidden');
+                clearBtn.classList.add('flex');
+            } else {
+                clearBtn.classList.add('hidden');
+                clearBtn.classList.remove('flex');
+            }
+
+            if (uploadedPhotos.length === 0) {
+                container.innerHTML = `<div class="text-center py-6 text-slate-500 text-xs">Belum ada foto yang diunggah. Tambahkan foto dari tombol di atas.</div>`;
+                return;
+            }
+
+            container.innerHTML = uploadedPhotos.map((photo) => `
+                <div class="flex items-center gap-3 p-2 bg-slate-900/80 rounded-lg border border-slate-700/60">
+                    <img src="${photo.src}" class="w-11 h-11 object-cover rounded border border-slate-700 flex-shrink-0" alt="thumb">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-medium text-slate-300 truncate">${photo.name}</p>
+                        <div class="flex items-center gap-2 mt-1">
+                            <label class="text-[10px] text-slate-400">Salinan:</label>
+                            <input type="number" min="1" max="100" value="${photo.copies}" onchange="updatePhotoCopies('${photo.id}', this.value)" class="w-14 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-indigo-400 font-bold focus:outline-none focus:border-indigo-500">
+                        </div>
+                    </div>
+                    <button onclick="removePhoto('${photo.id}')" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition" title="Hapus Foto">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function updatePhotoCopies(id, val) {
+            const count = parseInt(val) || 1;
+            const item = uploadedPhotos.find(p => p.id === id);
+            if (item) {
+                item.copies = Math.max(1, count);
+                updateLayout();
+            }
+        }
+
+        function removePhoto(id) {
+            uploadedPhotos = uploadedPhotos.filter(p => p.id !== id);
+            renderPhotoList();
+            updateLayout();
+        }
+
+        function clearAllPhotos() {
+            uploadedPhotos = [];
+            renderPhotoList();
+            updateLayout();
+            showToast('Semua foto telah dibersihkan.');
+        }
+
+        function setAllCopies(count) {
+            if (uploadedPhotos.length === 0) {
+                showToast('Unggah foto terlebih dahulu.');
+                return;
+            }
+            uploadedPhotos.forEach(p => p.copies = count);
+            renderPhotoList();
+            updateLayout();
+            showToast(`Semua foto diset menjadi ${count} salinan.`);
+        }
+
+        function changeLayoutMode(val) {
+            layoutMode = val;
+            const manualBox = document.getElementById('manualGridControls');
+            if (layoutMode === 'manual') {
+                manualBox.classList.remove('hidden');
+                manualBox.classList.add('grid');
+            } else {
+                manualBox.classList.add('hidden');
+                manualBox.classList.remove('grid');
+            }
+            updateLayout();
+        }
+
+        function updateLayout() {
+            const paperPage = document.getElementById('paperPage');
+            const paperSizeKey = document.getElementById('paperSize').value;
+            const fitMode = document.getElementById('fitMode').value;
+            const bgColor = document.getElementById('bgColorInput').value;
+            const margin = parseInt(document.getElementById('marginInput').value) || 0;
+            const gap = parseInt(document.getElementById('gapInput').value) || 0;
+
+            if (!paperPage) return;
+
+            // Apply Size Class & Styles
+            paperPage.className = `paper-canvas ${paperSizeKey}`;
+            paperPage.style.backgroundColor = bgColor;
+            paperPage.style.padding = `${margin}px`;
+
+            // Flatten list based on photo copy requests
+            let displayList = [];
+            uploadedPhotos.forEach(p => {
+                for (let i = 0; i < p.copies; i++) {
+                    displayList.push(p);
+                }
+            });
+
+            const totalPhotos = displayList.length;
+
+            // Automatic Grid Calculation Logic
+            let cols = 2, rows = 2;
+            if (layoutMode === 'manual') {
+                cols = parseInt(document.getElementById('colsInput').value) || 1;
+                rows = parseInt(document.getElementById('rowsInput').value) || 1;
+            } else {
+                if (totalPhotos <= 1) { cols = 1; rows = 1; }
+                else if (totalPhotos === 2) { cols = 1; rows = 2; }
+                else if (totalPhotos <= 4) { cols = 2; rows = 2; }
+                else if (totalPhotos <= 6) { cols = 2; rows = 3; }
+                else if (totalPhotos <= 9) { cols = 3; rows = 3; }
+                else if (totalPhotos <= 12) { cols = 3; rows = 4; }
+                else if (totalPhotos <= 16) { cols = 4; rows = 4; }
+                else if (totalPhotos <= 20) { cols = 4; rows = 5; }
+                else if (totalPhotos <= 25) { cols = 5; rows = 5; }
+                else {
+                    cols = Math.ceil(Math.sqrt(totalPhotos));
+                    rows = Math.ceil(totalPhotos / cols);
+                }
+            }
+
+            const totalCapacity = cols * rows;
+
+            // Update Header Stats Counter
+            document.getElementById('totalPhotosCount').innerText = totalPhotos;
+            document.getElementById('capacityCount').innerText = totalCapacity;
+
+            const pageEstEl = document.getElementById('pageEstimateCount');
+            const totalPages = totalCapacity > 0 ? Math.ceil(totalPhotos / totalCapacity) || 1 : 1;
+            pageEstEl.innerText = `${totalPages} Lembar`;
+            pageEstEl.className = totalPages > 1 ? 'font-bold text-amber-400' : 'font-bold text-indigo-400';
+
+            // Empty Placeholder Rendering
+            if (displayList.length === 0) {
+                paperPage.innerHTML = `
+                    <div class="w-full h-full border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center text-slate-400 p-8 select-none">
+                        <i class="fa-solid fa-file-image text-4xl mb-3 opacity-40"></i>
+                        <p class="font-semibold text-slate-600 text-sm text-center">Lembar Kerja Kosong</p>
+                        <p class="text-xs text-slate-400 text-center mt-1">Unggah atau pilih foto untuk mengisi kanvas ini secara otomatis.</p>
+                    </div>`;
+                return;
+            }
+
+            // Photo Grid Construction
+            paperPage.innerHTML = `
+                <div class="grid w-full h-full" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr)); grid-template-rows: repeat(${rows}, minmax(0, 1fr)); gap: ${gap}px;">
+                    ${displayList.map((photo, i) => `
+                        <div class="w-full h-full min-h-0 min-w-0 overflow-hidden flex items-center justify-center rounded-sm bg-slate-100/40">
+                            <img src="${photo.src}" class="w-full h-full ${fitMode === 'cover' ? 'object-cover' : 'object-contain'}" alt="photo-${i}">
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Trigger Browser Window Print
+        function triggerPrint() {
+            if (uploadedPhotos.length === 0) {
+                showToast('Belum ada foto untuk dicetak.');
+                return;
+            }
+            window.print();
+        }
+
+        // Direct PDF Generator with jsPDF
+        function generateDirectPDF() {
+            const paperPage = document.getElementById('paperPage');
+            if (!paperPage || uploadedPhotos.length === 0) {
+                showToast('Belum ada foto untuk disimpan ke PDF.');
+                return;
+            }
+
+            const paperKey = document.getElementById('paperSize').value;
+            const dim = PAPER_DIMENSIONS[paperKey] || PAPER_DIMENSIONS['paper-a4-portrait'];
+
+            showToast('Memproses dokumen PDF presisi...');
+
+            html2canvas(paperPage, {
+                scale: 3, // High DPI capture
+                useCORS: true,
+                logging: false,
+                backgroundColor: document.getElementById('bgColorInput').value
+            }).then(canvas => {
+                const { jsPDF } = window.jspdf;
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                
+                const pdf = new jsPDF({
+                    orientation: dim.orientation,
+                    unit: 'mm',
+                    format: dim.format
+                });
+
+                pdf.addImage(imgData, 'JPEG', 0, 0, dim.widthMm, dim.heightMm);
+                pdf.save(`photo-grid-${dim.widthMm}x${dim.heightMm}mm-${Date.now()}.pdf`);
+
+                showToast(`PDF Berhasil Diunduh! (${dim.widthMm}mm x ${dim.heightMm}mm)`);
+            }).catch(err => {
+                console.error(err);
+                showToast('Gagal memproses PDF. Silakan gunakan tombol Cetak Langsung.');
+            });
+        }
+
+        // PNG High Res Download
+        function downloadAsPNG() {
+            const paperPage = document.getElementById('paperPage');
+            if (!paperPage || uploadedPhotos.length === 0) {
+                showToast('Belum ada foto untuk diunduh.');
+                return;
+            }
+
+            showToast('Sedang membuat gambar PNG...');
+            
+            html2canvas(paperPage, {
+                scale: 3,
+                useCORS: true,
+                logging: false,
+                backgroundColor: document.getElementById('bgColorInput').value
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `photo-grid-${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                showToast('Gambar berhasil diunduh!');
+            }).catch(err => {
+                console.error(err);
+                showToast('Gagal mengunduh gambar.');
+            });
+        }
+
+        // Toast Helper
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3200);
+        }
+    </script>
+</body>
+</html>
